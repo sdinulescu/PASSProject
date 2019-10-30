@@ -53,8 +53,10 @@ int octaves = 4;
 float falloff = 0.5;
 
 // ------ mesh coloring ------
-color midColor, topColor, bottomColor;
-color strokeColor;
+color midColor = color(6, 35, 75);
+color topColor = color(6, 55, 55);
+color bottomColor = color(6, 35, 75);
+color strokeColor = color(0);
 float threshold = 0.30;
 
 // ------ mouse interaction ------
@@ -67,6 +69,7 @@ boolean showStroke = false;
 
 //
 PVector opticalFlow;
+int ofThreshold = 100;
 
 void setup() {
   //fullScreen(P3D);
@@ -74,28 +77,22 @@ void setup() {
   colorMode(HSB, 360, 100, 100);
   
   cp5 = new ControlP5(this);
-  opencv = new OpenCV(this, 800, 800);
-  
   String[] cameras = Capture.list();
-  cam = new Capture(this, cameras[0]);
+  cam = new Capture(this, width, height, cameras[0]);
   cam.start();
+  opencv = new OpenCV(this, width, height);
 
-  cursor(CROSS);
-  // colors
-  topColor = color(6, 55, 55); //color(0, 0, 100); // dark blue
-  midColor = color(6, 35, 75); //color(191, 99, 63); 
-  bottomColor = color(6, 35, 75); //color(0, 0, 0); // black
-  strokeColor = color(0, 0, 0);
   smooth();
+  strokeJoin(ROUND);
+  cursor(CROSS);  
 
   setupSliders();
 }
 
 void draw() {
-  if (cam.available() == true) {
-    cam.read();
-  }
-  image(cam, 0, 0);
+  opticalFlow();
+  
+  //image(cam, 0, 0);
   
   if (showStroke) stroke(strokeColor);
   else noStroke();
@@ -127,14 +124,21 @@ void draw() {
 }
 
 void opticalFlow() {
-  
   opencv.loadImage(cam);
-  opencv.calculateOpticalFlow();
   
+  opencv.gray();
+  opencv.threshold(ofThreshold);
+  
+  opencv.calculateOpticalFlow();
   opticalFlow = opencv.getAverageFlow();
+  
   noiseXRange = opticalFlow.x;
   noiseYRange = opticalFlow.y;
   
+}
+
+void captureEvent(Capture cam) {
+  cam.read();
 }
 
 void drawCube(int units, float size){
