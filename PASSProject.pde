@@ -38,15 +38,15 @@ Controller cubeUnitsSlider;
 Controller cubeSizeSlider;
 
 // ------ mesh ------
-int cubeUnits = 10;
-int cubeSize = 28;
+int cubeUnits = 9;
+int cubeSize = 15;
 int tileCount = 50;
 int zScale = 100;
 int maxLayers = 50;
 int layerDensity = 10;
 
 // ------ noise ------
-float noiseMod = 50.0;
+float noiseMod = 80.0;
 float noiseXRange = 0.5;
 float noiseYRange = 0.5;
 int octaves = 4;
@@ -57,11 +57,11 @@ color midColor = color(6, 35, 75);
 color topColor = color(6, 55, 55);
 color bottomColor = color(6, 35, 75);
 color strokeColor = color(0);
-float threshold = 0.30;
+float threshold = 0.50;
 
 // ------ mouse interaction ------
-int offsetX = 0, offsetY = 0, clickX = 0, clickY = 0, zoom = -600;
-float rotationX = 0, rotationZ = PI/4.0, targetRotationX = -PI/3, targetRotationZ = PI/4.0, clickRotationX, clickRotationZ; 
+int offsetX = 0, offsetY = 0, clickX = 0, clickY = 0, zoom = 500;
+float rotationX = 0, rotationZ = PI, targetRotationX = -PI/3, targetRotationZ = PI, clickRotationX, clickRotationZ; 
 
 // ------ image output ------
 int qualityFactor = 4;
@@ -70,60 +70,100 @@ boolean showStroke = false;
 //
 PVector opticalFlow;
 int ofThreshold = 100;
+int flowScale = 10;
+float cubeMoveX = 0;
+float cubeMoveY = 0;
 
 void setup() {
-  //fullScreen(P3D);
-  size(800, 800, P3D);
+  fullScreen(P3D);
+  //size(800, 800, P3D);
   colorMode(HSB, 360, 100, 100);
   
   cp5 = new ControlP5(this);
   String[] cameras = Capture.list();
-  cam = new Capture(this, width, height, cameras[0]);
+  cam = new Capture(this,400, 300, cameras[0]);
   cam.start();
-  opencv = new OpenCV(this, width, height);
+  opencv = new OpenCV(this, 400, 300);
 
   smooth();
   strokeJoin(ROUND);
-  cursor(CROSS);  
-
-  setupSliders();
+  
+  //cursor(0);
+  //setupSliders();
 }
 
 void draw() {
+  fill(0, 10, 100, 80);
+  rect(0, 0, width, height);
+  
+  
+  // call optical flow!
   opticalFlow();
   
-  //image(cam, 0, 0);
+  stroke(255,0,0);
+  pushMatrix();
+    translate(width - 200, 0);
+    scale(3);
+    pushMatrix();
+      scale(-1,1);
+      stroke(0, 32);
+      strokeWeight(0.5);
+      //fill(230);
+      opencv.drawOpticalFlow();
+    popMatrix();
+  popMatrix();
+  
+  PVector aveFlow = opencv.getAverageFlow();
+ 
+  
+  //stroke(0);
+  //strokeWeight(10);
+  //line(width/2, height/2, width/2 + aveFlow.x*flowScale, height/2 + aveFlow.y*flowScale);
   
   if (showStroke) stroke(strokeColor);
   else noStroke();
 
-  background(0, 10, 100);
-  lights();
+  
 
 
   // ------ set view ------
   pushMatrix();
-  translate(width*0.5, height*0.5, zoom);
-
-  if (mousePressed && mouseButton==RIGHT) {
-    offsetX = mouseX-clickX;
-    offsetY = mouseY-clickY;
-    targetRotationX = min(max(clickRotationX + offsetY/float(width) * TWO_PI, -HALF_PI), HALF_PI);
-    targetRotationZ = clickRotationZ + offsetX/float(height) * TWO_PI;
-  }      
-  rotationX += (targetRotationX-rotationX)*0.25; 
-  rotationZ += (targetRotationZ-rotationZ)*0.25;  
-  rotateX(-rotationX);
-  rotateZ(-rotationZ); 
-
-  noiseDetail(octaves, falloff);
-  drawCube(cubeUnits, cubeSize);
+    translate(width*0.5, height*0.5, zoom);
+    
+    if (mousePressed && mouseButton==RIGHT) {
+      offsetX = mouseX-clickX;
+      offsetY = mouseY-clickY;
+      targetRotationX = min(max(clickRotationX + offsetY/float(width) * TWO_PI, -HALF_PI), HALF_PI);
+      targetRotationZ = clickRotationZ + offsetX/float(height) * TWO_PI;
+    }      
+    rotationX += (targetRotationX-rotationX)*0.25; 
+    rotationZ += (targetRotationZ-rotationZ)*0.25;  
+    rotateX(-rotationX);
+    rotateZ(-rotationZ); 
+    
+    noiseDetail(octaves, falloff);
+    cubeMoveX = constrain(
+      cubeMoveX - 0.005 * cubeMoveX - (-aveFlow.x * flowScale),
+      -85.0,
+      85.0
+    );
+    cubeMoveY = constrain(
+      cubeMoveY - 0.005 * cubeMoveY - (-aveFlow.y * flowScale),
+      -75.0,
+      75.0
+    );  
+    pushMatrix();
+      translate(cubeMoveX, 0, -cubeMoveY);
+      fill(255);//, 145);
+      drawCube(cubeUnits, cubeSize);
+    popMatrix();
   popMatrix(); 
-  
-  
+  lights();
 }
 
 void opticalFlow() {
+  //image(cam, 0, 0);
+  
   opencv.loadImage(cam);
   
   opencv.gray();
@@ -132,9 +172,10 @@ void opticalFlow() {
   opencv.calculateOpticalFlow();
   opticalFlow = opencv.getAverageFlow();
   
-  noiseXRange = opticalFlow.x;
-  noiseYRange = opticalFlow.y;
-  
+  //noiseXRange = opticalFlow.x;
+  noiseXRange = noiseXRange - 0.002 * noiseXRange - opticalFlow.x;
+  //noiseYRange = opticalFlow.y;
+  noiseYRange = noiseYRange - 0.002 * noiseYRange - opticalFlow.y;
 }
 
 void captureEvent(Capture cam) {
@@ -147,7 +188,7 @@ void drawCube(int units, float size){
     drawFacePair(units, size);
     rotateX(HALF_PI);
     //// top and bottom
-    drawFacePair(units, size);
+    //drawFacePair(units, size);
     rotateY(HALF_PI);
     //// left and right
     drawFacePair(units, size);
